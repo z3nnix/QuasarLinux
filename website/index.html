@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quasar Linux</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: #10141c;
+            color: #ffffff;
+            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.5;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 2rem;
+        }
+
+        .logo {
+            max-width: 120px;
+            margin-bottom: 1rem;
+        }
+
+        h1 {
+            font-size: 3rem;
+            font-weight: 500;
+            letter-spacing: -0.02em;
+        }
+
+        .tagline {
+            font-size: 1.1rem;
+            opacity: 0.7;
+            margin-top: 0.5rem;
+        }
+
+        .get-btn {
+            display: inline-block;
+            margin-top: 1.5rem;
+            padding: 0.6rem 1.5rem;
+            background: transparent;
+            color: rgba(255,255,255,0.85);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.9rem;
+            border-radius: 30px;
+            transition: all 0.2s ease;
+            border: 1px solid rgba(255,255,255,0.25);
+        }
+
+        .get-btn:hover {
+            border-color: rgba(255,255,255,0.6);
+            background: rgba(255,255,255,0.03);
+            color: #ffffff;
+            transform: translateY(-1px);
+        }
+
+        .section {
+            margin-bottom: 2.5rem;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 500;
+            margin-bottom: 1rem;
+            border-left: 3px solid #ffffff;
+            padding-left: 1rem;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .feature-card {
+            border: 1px solid rgba(255,255,255,0.15);
+            padding: 1.25rem;
+            background: rgba(255,255,255,0.02);
+            transition: all 0.2s ease;
+        }
+
+        .feature-card:hover {
+            border-color: rgba(255,255,255,0.3);
+            background: rgba(255,255,255,0.05);
+        }
+
+        .feature-card h3 {
+            font-size: 1.1rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+        }
+
+        .feature-card p {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        .role-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .role-item {
+            font-family: 'Fira Code', monospace;
+            font-size: 0.9rem;
+            padding: 0.75rem 1rem;
+            background: linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            text-align: center;
+            transition: all 0.2s ease;
+        }
+
+        .role-item:hover {
+            border-color: rgba(255,255,255,0.3);
+            background: rgba(255,255,255,0.05);
+            transform: translateY(-2px);
+        }
+
+        .role-name {
+            font-weight: 600;
+            color: #ffffff;
+        }
+
+        .role-desc {
+            font-size: 0.75rem;
+            opacity: 0.6;
+            margin-top: 0.25rem;
+        }
+
+        .code-block {
+            background: rgba(255,255,255,0.05);
+            padding: 1rem;
+            border-left: 2px solid #ffffff;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.9rem;
+            margin: 1rem 0;
+        }
+
+        .footer {
+            margin-top: 3rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            font-size: 0.8rem;
+            text-align: center;
+            opacity: 0.6;
+        }
+
+        @media (max-width: 768px) {
+            body { padding: 1rem; }
+            h1 { font-size: 2rem; }
+            .role-item { font-size: 0.8rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="assets/images/logotype.png" alt="Quasar Linux" class="logo" onerror="this.style.display='none'">
+            <h1>Quasar Linux</h1>
+            <div class="tagline">One Linux, no fragmentation</div>
+            <a href="#" class="get-btn" onclick="alert('Download Quasar | Available at quasar.sh'); return false;">Get Quasar →</a>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Philosophy</div>
+            <p style="margin-bottom: 1rem;">Debian is solid as a rock. Arch is fresh as a morning breeze. Void is light and fast. Quasar doesn't make you choose — you get the best of all worlds on a single kernel, without virtualization or overhead.</p>
+            <div class="code-block">$ quasar install any_package<br># it just arrives from the best source</div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Key Features</div>
+            <div class="feature-grid">
+                <div class="feature-card"><h3>15-minute setup</h3><p>CLI installer, three stages and your system is ready</p></div>
+                <div class="feature-card"><h3>Stability without stagnation</h3><p>Debian Stable base with fresh Arch packages</p></div>
+                <div class="feature-card"><h3>qsr doctor</h3><p>Conflict diagnostics, configuration rollbacks</p></div>
+                <div class="feature-card"><h3>No vendor lock</h3><p>GPLv3, no telemetry by default</p></div>
+                <div class="feature-card"><h3>Cross-stratum updates</h3><p>Seamless updates across roles</p></div>
+                <div class="feature-card"><h3>Immutable profiles</h3><p>Atomic environment switching</p></div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Strata (Roles)</div>
+            <div class="role-list">
+                <div class="role-item"><div class="role-name">core</div><div class="role-desc">Void base</div></div>
+                <div class="role-item"><div class="role-name">stable</div><div class="role-desc">Debian Stable + systemd</div></div>
+                <div class="role-item"><div class="role-name">rolling</div><div class="role-desc">Arch Linux (fresh)</div></div>
+                <div class="role-item"><div class="role-name">dev</div><div class="role-desc">Python/Go/Rust/Node</div></div>
+                <div class="role-item"><div class="role-name">gaming</div><div class="role-desc">Steam/Wine/gamemode</div></div>
+                <div class="role-item"><div class="role-name">container</div><div class="role-desc">Podman/Docker</div></div>
+                <div class="role-item"><div class="role-name">security</div><div class="role-desc">AppArmor + hardened malloc</div></div>
+                <div class="role-item"><div class="role-name">lowlatency</div><div class="role-desc">PREEMPT_RT + tuned for audio</div></div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Architecture</div>
+            <div class="feature-grid">
+                <div class="feature-card"><h3>Bedrock Linux</h3><p>No forks, upstream updates</p></div>
+                <div class="feature-card"><h3>Void rootfs</h3><p>Minimal foundation</p></div>
+                <div class="feature-card"><h3>qsr manager</h3><p>Role orchestration (Shell + Nim)</p></div>
+                <div class="feature-card"><h3>pmm integration</h3><p>Package multiplexing</p></div>
+                <div class="feature-card"><h3>Stratum linking</h3><p>Direct bin/lib binding via overlayfs</p></div>
+                <div class="feature-card"><h3>Zero-copy hooks</h3><p>Minimal startup overhead</p></div>
+            </div>
+        </div>
+
+        <div class="footer">
+            Quasar Linux 0.1.0 · GPLv3 · built on Bedrock, Void, Debian, Arch · not a utopia, but engineering
+        </div>
+    </div>
+</body>
+</html>
