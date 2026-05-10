@@ -1,1 +1,26 @@
-*.iso
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.swp
+*~
+*.bak
+*.orig
+*.fixed
+*.clean
+*.restored
+*.broken
+
+# Python
+*.pyc
+__pycache__/
+*.egg-info/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/

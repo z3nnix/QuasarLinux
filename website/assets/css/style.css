@@ -1,0 +1,88 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: #0c0c0c;
+    font-family: 'Fira Code', 'Monaco', 'Cascadia Code', 'Courier New', monospace;
+    font-size: 1rem;
+    line-height: 1.5;
+    color: #c0c0c0;
+    padding: 2rem;
+}
+
+.terminal {
+    max-width: 1000px;
+    margin: 0 auto;
+    background: #0a0a0a;
+    border: 1px solid #2a2a2a;
+    padding: 2rem;
+    border-radius: 8px;
+    box-shadow: 0 0 20px rgba(0,255,0,0.05);
+}
+
+.prompt-line {
+    margin-top: 1.2rem;
+    margin-bottom: 0.2rem;
+}
+
+.prompt {
+    color: #6eff6e;
+    font-weight: bold;
+    user-select: none;
+}
+
+.cmd {
+    color: #ffffff;
+    margin-left: 0.5rem;
+}
+
+.output-block {
+    margin-left: 1.2rem;
+    padding-left: 0.5rem;
+    border-left: 2px solid #2a6e2a;
+    margin-bottom: 0.8rem;
+}
+
+.output {
+    display: block;
+    color: #b0b0b0;
+    font-family: monospace;
+    white-space: pre-wrap;
+}
+
+.role-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 0.3rem;
+    margin-top: 0.3rem;
+}
+
+.role-item {
+    font-family: monospace;
+    color: #9eff9e;
+}
+
+.footer-line {
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid #2a2a2a;
+}
+
+.footer-line .prompt {
+    color: #6eff6e;
+    animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+}
+
+@media (max-width: 768px) {
+    body { padding: 1rem; }
+    .terminal { padding: 1rem; }
+    .cmd { font-size: 0.85rem; }
+}
