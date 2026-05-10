@@ -1,3 +1,4 @@
+/* Quasar Linux Website Styles */
 * {
     margin: 0;
     padding: 0;
@@ -5,84 +6,158 @@
 }
 
 body {
-    background: #0c0c0c;
-    font-family: 'Fira Code', 'Monaco', 'Cascadia Code', 'Courier New', monospace;
-    font-size: 1rem;
+    background-color: #10141c;
+    color: #ffffff;
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
     line-height: 1.5;
-    color: #c0c0c0;
     padding: 2rem;
 }
 
-.terminal {
+.container {
     max-width: 1000px;
     margin: 0 auto;
-    background: #0a0a0a;
-    border: 1px solid #2a2a2a;
-    padding: 2rem;
-    border-radius: 8px;
-    box-shadow: 0 0 20px rgba(0,255,0,0.05);
 }
 
-.prompt-line {
-    margin-top: 1.2rem;
-    margin-bottom: 0.2rem;
+.header {
+    text-align: center;
+    margin-bottom: 3rem;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    padding-bottom: 2rem;
 }
 
-.prompt {
-    color: #6eff6e;
-    font-weight: bold;
-    user-select: none;
+.logo {
+    max-width: 120px;
+    margin-bottom: 1rem;
 }
 
-.cmd {
+h1 {
+    font-size: 3rem;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+}
+
+.tagline {
+    font-size: 1.1rem;
+    opacity: 0.7;
+    margin-top: 0.5rem;
+}
+
+.get-btn {
+    display: inline-block;
+    margin-top: 1.5rem;
+    padding: 0.6rem 1.5rem;
+    background: transparent;
+    color: rgba(255,255,255,0.85);
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 0.9rem;
+    border-radius: 30px;
+    transition: all 0.2s ease;
+    border: 1px solid rgba(255,255,255,0.25);
+}
+
+.get-btn:hover {
+    border-color: rgba(255,255,255,0.6);
+    background: rgba(255,255,255,0.03);
     color: #ffffff;
-    margin-left: 0.5rem;
+    transform: translateY(-1px);
 }
 
-.output-block {
-    margin-left: 1.2rem;
-    padding-left: 0.5rem;
-    border-left: 2px solid #2a6e2a;
-    margin-bottom: 0.8rem;
+.section {
+    margin-bottom: 2.5rem;
 }
 
-.output {
-    display: block;
-    color: #b0b0b0;
-    font-family: monospace;
-    white-space: pre-wrap;
+.section-title {
+    font-size: 1.5rem;
+    font-weight: 500;
+    margin-bottom: 1rem;
+    border-left: 3px solid #ffffff;
+    padding-left: 1rem;
 }
 
-.role-grid {
+.feature-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 0.3rem;
-    margin-top: 0.3rem;
+    gap: 1.5rem;
+}
+
+.feature-card {
+    border: 1px solid rgba(255,255,255,0.15);
+    padding: 1.25rem;
+    background: rgba(255,255,255,0.02);
+    transition: all 0.2s ease;
+}
+
+.feature-card:hover {
+    border-color: rgba(255,255,255,0.3);
+    background: rgba(255,255,255,0.05);
+}
+
+.feature-card h3 {
+    font-size: 1.1rem;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.feature-card p {
+    font-size: 0.9rem;
+    opacity: 0.8;
+}
+
+.role-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
 }
 
 .role-item {
-    font-family: monospace;
-    color: #9eff9e;
+    font-family: 'Fira Code', monospace;
+    font-size: 0.9rem;
+    padding: 0.75rem 1rem;
+    background: linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    text-align: center;
+    transition: all 0.2s ease;
 }
 
-.footer-line {
-    margin-top: 2rem;
-    padding-top: 1rem;
-    border-top: 1px solid #2a2a2a;
+.role-item:hover {
+    border-color: rgba(255,255,255,0.3);
+    background: rgba(255,255,255,0.05);
+    transform: translateY(-2px);
 }
 
-.footer-line .prompt {
-    color: #6eff6e;
-    animation: blink 1s step-end infinite;
+.role-name {
+    font-weight: 600;
+    color: #ffffff;
 }
 
-@keyframes blink {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0; }
+.role-desc {
+    font-size: 0.75rem;
+    opacity: 0.6;
+    margin-top: 0.25rem;
+}
+
+.code-block {
+    background: rgba(255,255,255,0.05);
+    padding: 1rem;
+    border-left: 2px solid #ffffff;
+    font-family: 'Fira Code', monospace;
+    font-size: 0.9rem;
+    margin: 1rem 0;
+}
+
+.footer {
+    margin-top: 3rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid rgba(255,255,255,0.1);
+    font-size: 0.8rem;
+    text-align: center;
+    opacity: 0.6;
 }
 
 @media (max-width: 768px) {
     body { padding: 1rem; }
-    .terminal { padding: 1rem; }
-    .cmd { font-size: 0.85rem; }
+    h1 { font-size: 2rem; }
+    .role-item { font-size: 0.8rem; }
 }
