@@ -8,11 +8,10 @@ fi
 
 echo ":: Checking for wget..."
 
-# Install wget if not present
 if ! command -v wget > /dev/null 2>&1; then
     echo ":: wget not found. Installing..."
     
-    elif command -v pacman > /dev/null 2>&1; then
+    if command -v pacman > /dev/null 2>&1; then
         pacman -Sy --noconfirm wget
     else
         echo "Error: Could not install wget. Please install wget manually and re-run this script."
