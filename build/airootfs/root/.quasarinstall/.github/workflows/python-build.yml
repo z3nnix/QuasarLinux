@@ -1,0 +1,39 @@
+# This workflow will build Python packages on every commit.
+
+name: Build archinstall
+
+on: [ push, pull_request ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux/archlinux:latest
+      options: --privileged
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - name: Prepare arch
+        run: |
+          pacman-key --init
+          pacman --noconfirm -Sy archlinux-keyring
+          pacman --noconfirm -Syyu
+          pacman --noconfirm -Sy python-uv python-setuptools python-pip
+          pacman --noconfirm -Sy python-pyparted python-pydantic python-textual
+      - name: Remove existing Quasarinstall (if any)
+        run: 
+          uv pip uninstall Quasarinstall --break-system-packages --system
+      - name: Build archinstall
+        run: uv build --no-build-isolation --wheel
+      - name: Install archinstall
+        run: |
+          uv pip install dist/*.whl --break-system-packages --system --no-build --no-deps
+      - name: Run archinstall
+        run: |
+          python -V
+          Quasarinstall --script guided -v
+          Quasarinstall --script only_hd -v
+          Quasarinstall --script minimal -v
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: archinstall
+          path: dist/*

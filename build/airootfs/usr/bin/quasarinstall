@@ -1,0 +1,17 @@
+#!/bin/bash
+
+python3 ~/.quasarinstall/archinstall/main.py
+
+if [ -d "/mnt" ] && [ -f "/mnt/etc/os-release" ]; then
+    echo "Installation completed, adding post-install script..."
+    
+    curl -sSL https://raw.githubusercontent.com/z3nnix/QuasarLinux/refs/heads/main/build/scripts/post-install.sh -o /mnt/bin/quasarify
+    
+    chmod +x /mnt/bin/quasarify
+    
+    echo "Post-install script added to /bin/quasarify"
+    echo "  Run 'quasarify' after reboot to finish setup"
+else
+    echo "FATAL: Installation failed or /mnt not found"
+    exit 1
+fi

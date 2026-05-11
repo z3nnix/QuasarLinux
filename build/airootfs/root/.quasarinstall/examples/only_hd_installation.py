@@ -1,0 +1,1 @@
+../archinstall/scripts/only_hd.py

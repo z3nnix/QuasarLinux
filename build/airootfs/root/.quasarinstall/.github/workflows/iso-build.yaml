@@ -1,0 +1,39 @@
+# This workflow will build an QuasarLinux ISO file with the commit on it
+
+name: Build Arch ISO with Quasarinstall Commit
+
+on:
+  push:
+    branches:
+      - master
+      - main # In case we adopt this convention in the future
+  pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '**.editorconfig'
+      - '**.gitignore'
+      - '**.md'
+      - 'LICENSE'
+      - 'PKGBUILD'
+  release:
+    types:
+      - created
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux/archlinux:latest
+      options: --privileged
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - run: pwd
+      - run: find .
+      - run: cat /etc/os-release
+      - run: pacman-key --init
+      - run: pacman --noconfirm -Sy archlinux-keyring
+      - run: ./build_iso.sh
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: Arch Live ISO
+          path: /tmp/archlive/out/*.iso

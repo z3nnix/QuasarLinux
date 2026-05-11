@@ -1,0 +1,12 @@
+on: [ push, pull_request ]
+name: Bandit security checkup
+jobs:
+    bandit:
+        runs-on: ubuntu-latest
+        container:
+            image: archlinux/archlinux:latest
+        steps:
+            - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+            - run: pacman --noconfirm -Syu bandit
+            - name: Security checkup with Bandit
+              run: bandit -r Quasarinstall || exit 0
