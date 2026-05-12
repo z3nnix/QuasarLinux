@@ -6,20 +6,9 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-echo ":: Checking for wget..."
-
-if ! command -v wget > /dev/null 2>&1; then
-    echo ":: wget not found. Installing..."
-    
-    if command -v pacman > /dev/null 2>&1; then
-        pacman -Sy --noconfirm wget
-    else
-        echo "Error: Could not install wget. Please install wget manually and re-run this script."
-        exit 1
-    fi
-    
-    echo ":: wget installed successfully"
-fi
+pacman -Sy --noconfirm wget
+pacman -Sy --noconfirm ruby
+pacman -Sy --noconfirm git
 
 cd /
 
@@ -48,10 +37,10 @@ sleep 2
 echo ":: Updating os-release files with QuasarLinux branding..."
 cat > /etc/os-release <<'EOF'
 NAME="QuasarLinux"
-VERSION="0.1.0"
+PRETTY_NAME="QuasarLinux"
+BUILD_ID=rolling
 ID=quasar
 ID_LIKE="quasar"
-PRETTY_NAME="QuasarLinux 0.1.0"
 HOME_URL="https://z3nnix.github.io/quasarlinux"
 SUPPORT_URL="https://github.com/z3nnix/quasarlinux"
 BUG_REPORT_URL="https://github.com/z3nnix/quasarlinux/issues"
@@ -85,4 +74,10 @@ else
     echo ":: Warning: bedrock.conf not found. Timeout may need manual configuration"
 fi
 
-echo ":: Bedrock has been setup successfully. Please reboot your PC."
+echo ":: Bedrock has been setup successfully."
+
+git clone https://github.com/z3nnix/quasarlinux /usr/src/
+mv /usr/src/qsr/qsr /usr/bin/qsr
+chmod +x /usr/bin/qsr
+
+echo ":: QuasarLinux has been installed successfully. Please reboot your PC"

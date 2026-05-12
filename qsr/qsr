@@ -1,0 +1,288 @@
+#!/usr/bin/env ruby
+# qsr - Quasar System Resources
+
+require 'optparse'
+
+DEFAULT_STRATA = "hijacked"
+VERSION = "0.1.0"
+$auto_confirm = false
+
+def show_help
+  puts <<~HELP
+    Quasar System Resources (qsr) v#{VERSION}
+    Package and strata management for Quasar Linux
+
+    Usage:
+      qsr [options] <command> [arguments]
+
+    Commands:
+      install <pkg>               Install package into current strata
+      install <strata>:<pkg>      Install package into specified strata
+      remove  <pkg>               Remove package from current strata
+      remove  <strata>:<pkg>      Remove package from specified strata
+      update                      Update entire system
+      update  <pkg>               Update specific package
+      update  <strata>:<pkg>      Update package in specified strata
+      doctor                      Run system diagnostics
+      list                        List all installed packages
+      list <strata>               List packages in specified strata
+      info  <pkg>                 Show package information
+
+    Options:
+      -h, --help                  Show this help message
+      -v, --version               Show version information
+      -y, --yes                   Auto-confirm all prompts
+
+    Examples:
+      qsr install nginx               Install nginx to current strata
+      qsr install deb:steam           Install steam to debian strata
+      qsr remove  deb:steam           Remove steam from debian strata
+      qsr update  firefox             Update firefox package only
+  HELP
+end
+
+def confirm(prompt, default = false)
+  return true if $auto_confirm
+  print "#{prompt} "
+  answer = STDIN.gets.chomp.downcase
+  if default
+    answer.empty? || answer == 'y' || answer == 'yes'
+  else
+    answer == 'y' || answer == 'yes'
+  end
+end
+
+def run_command(cmd)
+  puts ":: executing: #{cmd}"
+  system(cmd)
+  unless $?.success?
+    puts "error: command failed with exit code #{$?.exitstatus}"
+    exit $?.exitstatus
+  end
+end
+
+def handle_install(package)
+  if package.nil?
+    puts "error: no package specified for installation"
+    puts "usage: qsr install <package> or qsr install <strata>:<package>"
+    exit 1
+  end
+
+  if package.include?(':')
+    strata, pkg = package.split(':', 2)
+    puts ":: installing #{pkg} into strata #{strata}..."
+    puts ":: NOTE: Multi-strata package management is not yet implemented"
+    if confirm(":: Proceed with fallback to current strata (#{DEFAULT_STRATA})? [y/N]", false)
+      run_command("strat #{DEFAULT_STRATA} pacman -Syu --noconfirm #{pkg}")
+    else
+      puts ":: cancelled."
+      exit 0
+    end
+  else
+    puts ":: installing #{package} into current strata (#{DEFAULT_STRATA})..."
+    if confirm(":: Proceed with installation? [Y/n]", true)
+      run_command("strat #{DEFAULT_STRATA} pacman -Syu --noconfirm #{package}")
+    else
+      puts ":: cancelled."
+      exit 0
+    end
+  end
+  puts "done."
+end
+
+def handle_remove(package)
+  if package.nil?
+    puts "error: no package specified for removal"
+    puts "usage: qsr remove <package> or qsr remove <strata>:<package>"
+    exit 1
+  end
+
+  if package.include?(':')
+    strata, pkg = package.split(':', 2)
+    puts ":: removing #{pkg} from strata #{strata}..."
+    puts ":: NOTE: Multi-strata package removal is not yet implemented"
+    if confirm(":: Proceed with fallback to current strata (#{DEFAULT_STRATA})? [y/N]", false)
+      run_command("strat #{DEFAULT_STRATA} pacman -R --noconfirm #{pkg}")
+    else
+      puts ":: cancelled."
+      exit 0
+    end
+  else
+    puts ":: removing #{package} from current strata (#{DEFAULT_STRATA})..."
+    if confirm(":: Proceed with removal? [Y/n]", true)
+      run_command("strat #{DEFAULT_STRATA} pacman -R --noconfirm #{package}")
+    else
+      puts ":: cancelled."
+      exit 0
+    end
+  end
+  puts "done."
+end
+
+def handle_update(package = nil)
+  if package.nil?
+    puts ":: updating entire system..."
+    if confirm(":: Proceed with full system update? [Y/n]", true)
+      run_command("strat #{DEFAULT_STRATA} pacman -Syu --noconfirm")
+      run_command("brl update")
+    else
+      puts ":: cancelled."
+      exit 0
+    end
+  elsif package.include?(':')
+    strata, pkg = package.split(':', 2)
+    puts ":: updating #{pkg} from strata #{strata}..."
+    puts ":: NOTE: Multi-strata package updates are not yet implemented"
+    if confirm(":: Proceed with fallback to current strata (#{DEFAULT_STRATA})? [y/N]", false)
+      run_command("strat #{DEFAULT_STRATA} pacman -Syu --noconfirm #{pkg}")
+    else
+      puts ":: cancelled."
+      exit 0
+    end
+  else
+    puts ":: updating #{package} in current strata..."
+    if confirm(":: Proceed with update? [Y/n]", true)
+      run_command("strat #{DEFAULT_STRATA} pacman -Syu --noconfirm #{package}")
+    else
+      puts ":: cancelled."
+      exit 0
+    end
+  end
+  puts "done."
+end
+
+def handle_list(strata = nil)
+  if strata.nil?
+    puts ":: listing all installed packages in current strata (#{DEFAULT_STRATA})..."
+    if confirm(":: Proceed? [Y/n]", true)
+      run_command("strat #{DEFAULT_STRATA} pacman -Q")
+    else
+      puts ":: cancelled."
+      exit 0
+    end
+  else
+    puts ":: listing packages in strata #{strata}..."
+    puts ":: NOTE: Listing packages from other strata is not yet implemented"
+    puts ":: This feature will be available in a future version"
+    exit 1
+  end
+  puts "done."
+end
+
+def handle_info(package)
+  if package.nil?
+    puts "error: no package specified"
+    puts "usage: qsr info <package>"
+    exit 1
+  end
+
+  if package.include?(':')
+    strata, pkg = package.split(':', 2)
+    puts ":: showing info for #{pkg} in strata #{strata}..."
+    puts ":: NOTE: Multi-strata package info is not yet implemented"
+    if confirm(":: Show info from current strata instead? [y/N]", false)
+      run_command("strat #{DEFAULT_STRATA} pacman -Qi #{pkg}")
+    else
+      puts ":: cancelled."
+      exit 0
+    end
+  else
+    puts ":: showing info for #{package}..."
+    if confirm(":: Proceed? [Y/n]", true)
+      run_command("strat #{DEFAULT_STRATA} pacman -Qi #{package}")
+    else
+      puts ":: cancelled."
+      exit 0
+    end
+  end
+  puts "done."
+end
+
+def handle_doctor
+  puts ":: running system diagnostics..."
+  
+  unless confirm(":: Continue with diagnostics? [Y/n]", true)
+    puts ":: cancelled."
+    exit 0
+  end
+
+  puts ":: checking strata integrity..."
+  
+  unless system("which strat > /dev/null 2>&1")
+    puts "error: 'strat' command not found. Is Bedrock Linux installed?"
+    exit 1
+  end
+  
+  unless system("strat -l | grep -q '^#{DEFAULT_STRATA}$'")
+    puts "warning: strata '#{DEFAULT_STRATA}' not found"
+    puts ":: available stratas:"
+    system("strat -l")
+    exit 1
+  end
+  
+  puts ":: checking package manager..."
+  run_command("strat #{DEFAULT_STRATA} pacman -Q")
+  
+  puts ":: all checks passed. System appears healthy."
+end
+
+# Main argument parser
+def parse_arguments
+  # First, parse global options
+  opt_parser = OptionParser.new do |opts|
+    opts.on("-h", "--help", "Show help") do
+      show_help
+      exit 0
+    end
+    opts.on("-v", "--version", "Show version") do
+      puts "qsr #{VERSION}"
+      exit 0
+    end
+    opts.on("-y", "--yes", "Auto-confirm all prompts") do
+      $auto_confirm = true
+    end
+  end
+  
+  begin
+    opt_parser.parse!(ARGV)
+  rescue OptionParser::InvalidOption => e
+    puts "error: #{e.message}"
+    puts "See 'qsr --help' for usage"
+    exit 1
+  end
+
+  if ARGV.empty?
+    show_help
+    exit 0
+  end
+
+  command = ARGV.shift
+
+  case command
+  when "install"
+    package = ARGV.shift
+    handle_install(package)
+  when "remove"
+    package = ARGV.shift
+    handle_remove(package)
+  when "update"
+    package = ARGV.shift
+    handle_update(package)
+  when "list"
+    strata = ARGV.shift
+    handle_list(strata)
+  when "info"
+    package = ARGV.shift
+    handle_info(package)
+  when "doctor"
+    handle_doctor
+  else
+    puts "qsr: '#{command}' is not a valid command"
+    puts "See 'qsr --help' for more information"
+    exit 1
+  end
+end
+
+if __FILE__ == $0
+  parse_arguments
+end
