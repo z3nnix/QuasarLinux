@@ -7,6 +7,10 @@ DEFAULT_STRATA = "hijacked"
 VERSION = "0.1.0"
 $auto_confirm = false
 
+# ----------------------------------------------------------------------
+# Helpers
+# ----------------------------------------------------------------------
+
 def show_help
   puts <<~HELP
     Quasar System Resources (qsr) v#{VERSION}
@@ -52,8 +56,8 @@ def confirm(prompt, default = false)
   end
 end
 
-def run_command(cmd)
-  puts ":: executing: #{cmd}"
+def run_command(cmd, show_exec = true)
+  puts ":: executing: #{cmd}" if show_exec
   system(cmd)
   unless $?.success?
     puts "error: command failed with exit code #{$?.exitstatus}"
@@ -61,62 +65,77 @@ def run_command(cmd)
   end
 end
 
-def handle_install(package)
+# Parses "strata:package" or just "package"
+# Returns [strata, package, has_strata_flag]
+def parse_strata_package(arg)
+  if arg.include?(':')
+    arg.split(':', 2)
+  else
+    [nil, arg]
+  end
+end
+
+# For read-only commands we rarely need confirmation, but for fallback we do.
+def with_fallback(action_desc, target_strata, pkg, default_strata = DEFAULT_STRATA, &block)
+  puts ":: #{action_desc} #{pkg} from strata #{target_strata}..."
+  puts "NOTE: Multi-strata operations are not yet implemented\n"
+  if confirm(":: Proceed with fallback to current strata (#{default_strata})? [y/N]", false)
+    yield(pkg)
+  else
+    puts ":: cancelled."
+    exit 0
+  end
+end
+
+# Generic handler for commands that support strata:package syntax with fallback
+def handle_with_fallback(package, action_desc, command_fmt, needs_confirmation: true)
   if package.nil?
-    puts "error: no package specified for installation"
-    puts "usage: qsr install <package> or qsr install <strata>:<package>"
+    puts "error: no package specified for #{action_desc}"
+    puts "usage: qsr #{action_desc.split[0]} <package> or qsr #{action_desc.split[0]} <strata>:<package>"
     exit 1
   end
 
-  if package.include?(':')
-    strata, pkg = package.split(':', 2)
-    puts ":: installing #{pkg} into strata #{strata}..."
-    puts ":: NOTE: Multi-strata package management is not yet implemented"
-    if confirm(":: Proceed with fallback to current strata (#{DEFAULT_STRATA})? [y/N]", false)
-      run_command("strat #{DEFAULT_STRATA} pacman -Syu --noconfirm #{pkg}")
-    else
-      puts ":: cancelled."
-      exit 0
+  strata, pkg = parse_strata_package(package)
+
+  if strata
+    with_fallback(action_desc, strata, pkg) do |pk|
+      cmd = format(command_fmt, pk)
+      if needs_confirmation && confirm(":: Proceed with #{action_desc}? [Y/n]", true)
+        run_command(cmd)
+      elsif !needs_confirmation
+        run_command(cmd)
+      else
+        puts ":: cancelled."
+        exit 0
+      end
     end
   else
-    puts ":: installing #{package} into current strata (#{DEFAULT_STRATA})..."
-    if confirm(":: Proceed with installation? [Y/n]", true)
-      run_command("strat #{DEFAULT_STRATA} pacman -Syu --noconfirm #{package}")
+    puts ":: #{action_desc} #{pkg} into current strata (#{DEFAULT_STRATA})..."
+    cmd = format(command_fmt, pkg)
+    if needs_confirmation
+      if confirm(":: Proceed with #{action_desc}? [Y/n]", true)
+        run_command(cmd)
+      else
+        puts ":: cancelled."
+        exit 0
+      end
     else
-      puts ":: cancelled."
-      exit 0
+      run_command(cmd)
     end
   end
   puts "done."
 end
 
-def handle_remove(package)
-  if package.nil?
-    puts "error: no package specified for removal"
-    puts "usage: qsr remove <package> or qsr remove <strata>:<package>"
-    exit 1
-  end
+# ----------------------------------------------------------------------
+# Command handlers
+# ----------------------------------------------------------------------
 
-  if package.include?(':')
-    strata, pkg = package.split(':', 2)
-    puts ":: removing #{pkg} from strata #{strata}..."
-    puts ":: NOTE: Multi-strata package removal is not yet implemented"
-    if confirm(":: Proceed with fallback to current strata (#{DEFAULT_STRATA})? [y/N]", false)
-      run_command("strat #{DEFAULT_STRATA} pacman -R --noconfirm #{pkg}")
-    else
-      puts ":: cancelled."
-      exit 0
-    end
-  else
-    puts ":: removing #{package} from current strata (#{DEFAULT_STRATA})..."
-    if confirm(":: Proceed with removal? [Y/n]", true)
-      run_command("strat #{DEFAULT_STRATA} pacman -R --noconfirm #{package}")
-    else
-      puts ":: cancelled."
-      exit 0
-    end
-  end
-  puts "done."
+def handle_install(package)
+  handle_with_fallback(package, "installing", "strat #{DEFAULT_STRATA} pacman -Syu --noconfirm %s", needs_confirmation: true)
+end
+
+def handle_remove(package)
+  handle_with_fallback(package, "removing", "strat #{DEFAULT_STRATA} pacman -R --noconfirm %s", needs_confirmation: true)
 end
 
 def handle_update(package = nil)
@@ -129,20 +148,24 @@ def handle_update(package = nil)
       puts ":: cancelled."
       exit 0
     end
-  elsif package.include?(':')
-    strata, pkg = package.split(':', 2)
-    puts ":: updating #{pkg} from strata #{strata}..."
-    puts ":: NOTE: Multi-strata package updates are not yet implemented"
-    if confirm(":: Proceed with fallback to current strata (#{DEFAULT_STRATA})? [y/N]", false)
-      run_command("strat #{DEFAULT_STRATA} pacman -Syu --noconfirm #{pkg}")
-    else
-      puts ":: cancelled."
-      exit 0
+    puts "done."
+    return
+  end
+
+  strata, pkg = parse_strata_package(package)
+  if strata
+    with_fallback("updating", strata, pkg) do |pk|
+      if confirm(":: Proceed with update? [Y/n]", true)
+        run_command("strat #{DEFAULT_STRATA} pacman -Syu --noconfirm #{pk}")
+      else
+        puts ":: cancelled."
+        exit 0
+      end
     end
   else
-    puts ":: updating #{package} in current strata..."
+    puts ":: updating #{pkg} in current strata..."
     if confirm(":: Proceed with update? [Y/n]", true)
-      run_command("strat #{DEFAULT_STRATA} pacman -Syu --noconfirm #{package}")
+      run_command("strat #{DEFAULT_STRATA} pacman -Syu --noconfirm #{pkg}")
     else
       puts ":: cancelled."
       exit 0
@@ -154,15 +177,10 @@ end
 def handle_list(strata = nil)
   if strata.nil?
     puts ":: listing all installed packages in current strata (#{DEFAULT_STRATA})..."
-    if confirm(":: Proceed? [Y/n]", true)
-      run_command("strat #{DEFAULT_STRATA} pacman -Q")
-    else
-      puts ":: cancelled."
-      exit 0
-    end
+    run_command("strat #{DEFAULT_STRATA} pacman -Q")
   else
     puts ":: listing packages in strata #{strata}..."
-    puts ":: NOTE: Listing packages from other strata is not yet implemented"
+    puts "NOTE: Listing packages from other strata is not yet implemented\n"
     puts ":: This feature will be available in a future version"
     exit 1
   end
@@ -176,10 +194,10 @@ def handle_info(package)
     exit 1
   end
 
-  if package.include?(':')
-    strata, pkg = package.split(':', 2)
+  strata, pkg = parse_strata_package(package)
+  if strata
     puts ":: showing info for #{pkg} in strata #{strata}..."
-    puts ":: NOTE: Multi-strata package info is not yet implemented"
+    puts "NOTE: Multi-strata package info is not yet implemented\n"
     if confirm(":: Show info from current strata instead? [y/N]", false)
       run_command("strat #{DEFAULT_STRATA} pacman -Qi #{pkg}")
     else
@@ -187,48 +205,40 @@ def handle_info(package)
       exit 0
     end
   else
-    puts ":: showing info for #{package}..."
-    if confirm(":: Proceed? [Y/n]", true)
-      run_command("strat #{DEFAULT_STRATA} pacman -Qi #{package}")
-    else
-      puts ":: cancelled."
-      exit 0
-    end
+    puts ":: showing info for #{pkg}..."
+    run_command("strat #{DEFAULT_STRATA} pacman -Qi #{pkg}")
   end
   puts "done."
 end
 
 def handle_doctor
   puts ":: running system diagnostics..."
-  
-  unless confirm(":: Continue with diagnostics? [Y/n]", true)
-    puts ":: cancelled."
-    exit 0
-  end
+  # No confirmation needed for read-only diagnostic
 
   puts ":: checking strata integrity..."
-  
   unless system("which strat > /dev/null 2>&1")
     puts "error: 'strat' command not found. Is Bedrock Linux installed?"
     exit 1
   end
-  
+
   unless system("strat -l | grep -q '^#{DEFAULT_STRATA}$'")
     puts "warning: strata '#{DEFAULT_STRATA}' not found"
     puts ":: available stratas:"
     system("strat -l")
     exit 1
   end
-  
+
   puts ":: checking package manager..."
   run_command("strat #{DEFAULT_STRATA} pacman -Q")
-  
+
   puts ":: all checks passed. System appears healthy."
 end
 
-# Main argument parser
+# ----------------------------------------------------------------------
+# Argument parser
+# ----------------------------------------------------------------------
+
 def parse_arguments
-  # First, parse global options
   opt_parser = OptionParser.new do |opts|
     opts.on("-h", "--help", "Show help") do
       show_help
@@ -242,7 +252,7 @@ def parse_arguments
       $auto_confirm = true
     end
   end
-  
+
   begin
     opt_parser.parse!(ARGV)
   rescue OptionParser::InvalidOption => e
@@ -259,29 +269,22 @@ def parse_arguments
   command = ARGV.shift
 
   case command
-  when "install"
-    package = ARGV.shift
-    handle_install(package)
-  when "remove"
-    package = ARGV.shift
-    handle_remove(package)
-  when "update"
-    package = ARGV.shift
-    handle_update(package)
-  when "list"
-    strata = ARGV.shift
-    handle_list(strata)
-  when "info"
-    package = ARGV.shift
-    handle_info(package)
-  when "doctor"
-    handle_doctor
+  when "install"  then handle_install(ARGV.shift)
+  when "remove"   then handle_remove(ARGV.shift)
+  when "update"   then handle_update(ARGV.shift)
+  when "list"     then handle_list(ARGV.shift)
+  when "info"     then handle_info(ARGV.shift)
+  when "doctor"   then handle_doctor
   else
     puts "qsr: '#{command}' is not a valid command"
     puts "See 'qsr --help' for more information"
     exit 1
   end
 end
+
+# ----------------------------------------------------------------------
+# Run
+# ----------------------------------------------------------------------
 
 if __FILE__ == $0
   parse_arguments
