@@ -342,7 +342,6 @@ def parse_arguments
   when "update"
         handle_update(ARGV.shift)
         handle_self_update
-    end
   when "list"
     handle_list(ARGV.shift)
   when "info"
