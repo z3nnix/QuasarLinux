@@ -2,6 +2,7 @@
 # qsr - Quasar System Resources
 
 require 'optparse'
+require 'fileutils'
 
 DEFAULT_STRATA = "hijacked"
 VERSION = "0.1.0"
@@ -27,6 +28,7 @@ def show_help
       update                      Update entire system
       update  <pkg>               Update specific package
       update  <strata>:<pkg>      Update package in specified strata
+      update  --self              Update qsr itself
       doctor                      Run system diagnostics
       list                        List all installed packages
       list <strata>               List packages in specified strata
@@ -42,6 +44,7 @@ def show_help
       qsr install deb:steam           Install steam to debian strata
       qsr remove  deb:steam           Remove steam from debian strata
       qsr update  firefox             Update firefox package only
+      qsr update --self               Update qsr to latest version
   HELP
 end
 
@@ -66,7 +69,6 @@ def run_command(cmd, show_exec = true)
 end
 
 # Parses "strata:package" or just "package"
-# Returns [strata, package, has_strata_flag]
 def parse_strata_package(arg)
   if arg.include?(':')
     arg.split(':', 2)
@@ -124,6 +126,70 @@ def handle_with_fallback(package, action_desc, command_fmt, needs_confirmation: 
     end
   end
   puts "done."
+end
+
+# ----------------------------------------------------------------------
+# Self-update
+# ----------------------------------------------------------------------
+
+def handle_self_update
+  puts ":: updating qsr to latest version..."
+  
+  if confirm(":: Proceed with self-update? [y/N]", false)
+    current_path = `/usr/bin/which qsr`.chomp
+    current_path = $0 if current_path.empty? || current_path == ""
+    
+    if current_path.empty?
+      puts "error: cannot determine qsr binary location"
+      exit 1
+    end
+    
+    puts ":: current binary: #{current_path}"
+    puts ":: downloading latest version..."
+    
+    temp_file = "/tmp/qsr_new_#{Time.now.to_i}"
+    
+    download_cmd = "curl -s -o #{temp_file} https://raw.githubusercontent.com/z3nnix/quasarlinux/main/qsr/qsr"
+    system(download_cmd)
+    
+    unless $?.success? && File.exist?(temp_file) && File.size(temp_file) > 0
+      puts "error: failed to download new version"
+      File.delete(temp_file) if File.exist?(temp_file)
+      exit 1
+    end
+    
+    unless File.read(temp_file).include?("qsr - Quasar System Resources")
+      puts "error: downloaded file appears to be invalid"
+      File.delete(temp_file) if File.exist?(temp_file)
+      exit 1
+    end
+    
+    updater_script = <<~SCRIPT
+      #!/bin/bash
+      sleep 1
+      cp #{temp_file} #{current_path}
+      chmod +x #{current_path}
+      rm -f #{temp_file}
+      echo ":: qsr updated successfully!"
+      echo -n ":: New version: "
+      #{current_path} --version
+    SCRIPT
+    
+    updater_path = "/tmp/qsr_updater_#{Time.now.to_i}.sh"
+    File.write(updater_path, updater_script)
+    File.chmod(0755, updater_path)
+    
+    puts ":: spawning updater in background..."
+    system("nohup bash #{updater_path} > /dev/null 2>&1 &")
+    
+    puts ":: self-update initiated. Exiting qsr..."
+    puts ":: The update will complete in a few seconds."
+    puts ":: Run 'qsr --version' to verify the update."
+    
+    exit 0
+  else
+    puts ":: cancelled."
+  end
 end
 
 # ----------------------------------------------------------------------
@@ -269,12 +335,20 @@ def parse_arguments
   command = ARGV.shift
 
   case command
-  when "install"  then handle_install(ARGV.shift)
-  when "remove"   then handle_remove(ARGV.shift)
-  when "update"   then handle_update(ARGV.shift)
-  when "list"     then handle_list(ARGV.shift)
-  when "info"     then handle_info(ARGV.shift)
-  when "doctor"   then handle_doctor
+  when "install"
+    handle_install(ARGV.shift)
+  when "remove"
+    handle_remove(ARGV.shift)
+  when "update"
+        handle_update(ARGV.shift)
+        handle_self_update
+    end
+  when "list"
+    handle_list(ARGV.shift)
+  when "info"
+    handle_info(ARGV.shift)
+  when "doctor"
+    handle_doctor
   else
     puts "qsr: '#{command}' is not a valid command"
     puts "See 'qsr --help' for more information"
