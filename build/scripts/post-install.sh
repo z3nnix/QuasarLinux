@@ -9,6 +9,7 @@ fi
 pacman -Sy --noconfirm wget
 pacman -Sy --noconfirm ruby
 pacman -Sy --noconfirm git
+pacman -Sy --noconfirm which
 
 cd /
 
