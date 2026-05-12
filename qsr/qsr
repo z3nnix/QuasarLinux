@@ -28,7 +28,6 @@ def show_help
       update                      Update entire system
       update  <pkg>               Update specific package
       update  <strata>:<pkg>      Update package in specified strata
-      update  --self              Update qsr itself
       doctor                      Run system diagnostics
       list                        List all installed packages
       list <strata>               List packages in specified strata
@@ -44,7 +43,6 @@ def show_help
       qsr install deb:steam           Install steam to debian strata
       qsr remove  deb:steam           Remove steam from debian strata
       qsr update  firefox             Update firefox package only
-      qsr update --self               Update qsr to latest version
   HELP
 end
 
