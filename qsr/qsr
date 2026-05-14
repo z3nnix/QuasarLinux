@@ -5,7 +5,7 @@ require 'optparse'
 require 'fileutils'
 
 DEFAULT_STRATA = "hijacked"
-VERSION = "0.1.1"
+VERSION = "0.1.2"
 $auto_confirm = false
 
 # ----------------------------------------------------------------------
@@ -18,13 +18,13 @@ def show_help
     Package and strata management for Quasar Linux
 
     Usage:
-      qsr [options] <command> [arguments]
+      qsr [options] <command> [arguments...]
 
     Commands:
-      install <pkg>               Install package into current strata
-      install <strata>:<pkg>      Install package into specified strata
-      remove  <pkg>               Remove package from current strata
-      remove  <strata>:<pkg>      Remove package from specified strata
+      install <pkg> [pkg2 pkg3 ...]   Install packages into current strata
+      install <strata>:<pkg> [...]    Install packages into specified strata
+      remove  <pkg> [pkg2 pkg3 ...]   Remove packages from current strata
+      remove  <strata>:<pkg> [...]    Remove packages from specified strata
       update                      Update entire system
       update  <pkg>               Update specific package
       update  <strata>:<pkg>      Update package in specified strata
@@ -39,10 +39,10 @@ def show_help
       -y, --yes                   Auto-confirm all prompts
 
     Examples:
-      qsr install nginx               Install nginx to current strata
-      qsr install deb:steam           Install steam to debian strata
-      qsr remove  deb:steam           Remove steam from debian strata
-      qsr update  firefox             Update firefox package only
+      qsr install nginx redis postgresql   Install multiple packages
+      qsr install deb:steam wine           Install steam to debian strata and wine to current
+      qsr remove  deb:steam wine           Remove steam from debian strata and wine from current
+      qsr update  firefox                  Update firefox package only
   HELP
 end
 
@@ -66,13 +66,26 @@ def run_command(cmd, show_exec = true)
   end
 end
 
-# Parses "strata:package" or just "package"
 def parse_strata_package(arg)
   if arg.include?(':')
     arg.split(':', 2)
   else
     [nil, arg]
   end
+end
+
+def group_packages_by_strata(packages)
+  groups = {}
+  
+  packages.each do |pkg|
+    strata, pkg_name = parse_strata_package(pkg)
+    current_strata = strata || DEFAULT_STRATA
+    
+    groups[current_strata] ||= []
+    groups[current_strata] << pkg_name
+  end
+  
+  groups
 end
 
 # For read-only commands we rarely need confirmation, but for fallback we do.
@@ -87,43 +100,40 @@ def with_fallback(action_desc, target_strata, pkg, default_strata = DEFAULT_STRA
   end
 end
 
-# Generic handler for commands that support strata:package syntax with fallback
-def handle_with_fallback(package, action_desc, command_fmt, needs_confirmation: true)
-  if package.nil?
+def handle_multi_packages(packages, action_desc, command_fmt, needs_confirmation: true)
+  if packages.nil? || packages.empty?
     puts "error: no package specified for #{action_desc}"
-    puts "usage: qsr #{action_desc.split[0]} <package> or qsr #{action_desc.split[0]} <strata>:<package>"
+    puts "usage: qsr #{action_desc.split[0]} <package> [package2 ...] or qsr #{action_desc.split[0]} <strata>:<package> [...]"
     exit 1
   end
 
-  strata, pkg = parse_strata_package(package)
+  groups = group_packages_by_strata(packages)
+  
+  puts ":: #{action_desc} packages..."
+  groups.each do |strata, pkgs|
+    puts "  -> strata '#{strata}': #{pkgs.join(', ')}"
+  end
+  
+  if needs_confirmation && !confirm(":: Proceed with #{action_desc}? [Y/n]", true)
+    puts ":: cancelled."
+    exit 0
+  end
 
-  if strata
-    with_fallback(action_desc, strata, pkg) do |pk|
-      cmd = format(command_fmt, pk)
-      if needs_confirmation && confirm(":: Proceed with #{action_desc}? [Y/n]", true)
+  groups.each do |strata, pkgs|
+    puts "\n:: #{action_desc} from strata '#{strata}': #{pkgs.join(', ')}"
+    
+    if command_fmt.include?('%s')
+      pkgs.each do |pkg|
+        cmd = format(command_fmt, strata, pkg)
         run_command(cmd)
-      elsif !needs_confirmation
-        run_command(cmd)
-      else
-        puts ":: cancelled."
-        exit 0
-      end
-    end
-  else
-    puts ":: #{action_desc} #{pkg} into current strata (#{DEFAULT_STRATA})..."
-    cmd = format(command_fmt, pkg)
-    if needs_confirmation
-      if confirm(":: Proceed with #{action_desc}? [Y/n]", true)
-        run_command(cmd)
-      else
-        puts ":: cancelled."
-        exit 0
       end
     else
+      cmd = format(command_fmt, strata, pkgs.join(' '))
       run_command(cmd)
     end
   end
-  puts "done."
+  
+  puts "\n:: done."
 end
 
 # ----------------------------------------------------------------------
@@ -194,12 +204,12 @@ end
 # Command handlers
 # ----------------------------------------------------------------------
 
-def handle_install(package)
-  handle_with_fallback(package, "installing", "strat #{DEFAULT_STRATA} pacman -Syu --noconfirm %s", needs_confirmation: true)
+def handle_install(packages)
+  handle_multi_packages(packages, "installing", "strat %s pacman -Syu --noconfirm %s", needs_confirmation: true)
 end
 
-def handle_remove(package)
-  handle_with_fallback(package, "removing", "strat #{DEFAULT_STRATA} pacman -R --noconfirm %s", needs_confirmation: true)
+def handle_remove(packages)
+  handle_multi_packages(packages, "removing", "strat %s pacman -R --noconfirm %s", needs_confirmation: true)
 end
 
 def handle_update(package = nil)
@@ -334,12 +344,12 @@ def parse_arguments
 
   case command
   when "install"
-    handle_install(ARGV.shift)
+    handle_install(ARGV)
   when "remove"
-    handle_remove(ARGV.shift)
+    handle_remove(ARGV)
   when "update"
-        handle_update(ARGV.shift)
-        handle_self_update
+    handle_update(ARGV.shift)
+    handle_self_update
   when "list"
     handle_list(ARGV.shift)
   when "info"
