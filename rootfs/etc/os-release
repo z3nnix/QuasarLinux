@@ -1,0 +1,9 @@
+NAME="QuasarLinux"
+PRETTY_NAME="QuasarLinux"
+BUILD_ID=rolling
+ID=quasar
+ID_LIKE="quasar"
+LOGO=quasar
+HOME_URL="https://z3nnix.github.io/QuasarLinux"
+SUPPORT_URL="https://github.com/z3nnix/QuasarLinux"
+BUG_REPORT_URL="https://github.com/z3nnix/QuasarLinux/issues"
