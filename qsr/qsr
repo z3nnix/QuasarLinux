@@ -5,7 +5,7 @@ require 'optparse'
 require 'fileutils'
 
 DEFAULT_STRATA = "hijacked"
-VERSION = "0.1.2"
+VERSION = "0.1.3"
 $auto_confirm = false
 QUASAR_REPO_URL = "https://github.com/z3nnix/QuasarLinux.git"
 QUASAR_REPO_PATH = "/opt/quasar"
@@ -36,7 +36,7 @@ def show_help
       info  <pkg>                 Show package information
 
     Options:
-      -h, --help                  Show this help message
+      -h, --help                  Show help message
       -v, --version               Show version information
       -y, --yes                   Auto-confirm all prompts
 
@@ -68,9 +68,35 @@ def run_command(cmd, show_exec = false)
   end
 end
 
+def normalize_strata_name(strata)
+  return "debian" if strata == "deb"
+  strata
+end
+
+def strata_exists?(strata)
+  real_name = normalize_strata_name(strata)
+  output = `brl list 2>/dev/null`
+  output.split.include?(real_name)
+end
+
+def ensure_strata(strata)
+  real_name = normalize_strata_name(strata)
+  return true if strata_exists?(real_name)
+  
+  if real_name == "debian"
+    puts ":: strata 'debian' not found, fetching..."
+    if confirm(":: Fetch debian strata? [Y/n]", true)
+      run_command("brl fetch debian")
+      return strata_exists?(real_name)
+    end
+  end
+  false
+end
+
 def parse_strata_package(arg)
   if arg.include?(':')
-    arg.split(':', 2)
+    parts = arg.split(':', 2)
+    [parts[0], parts[1]]
   else
     [nil, arg]
   end
@@ -81,27 +107,20 @@ def group_packages_by_strata(packages)
   
   packages.each do |pkg|
     strata, pkg_name = parse_strata_package(pkg)
-    current_strata = strata || DEFAULT_STRATA
+    normalized_strata = strata ? normalize_strata_name(strata) : DEFAULT_STRATA
     
-    groups[current_strata] ||= []
-    groups[current_strata] << pkg_name
+    groups[normalized_strata] ||= []
+    groups[normalized_strata] << pkg_name
   end
   
   groups
 end
 
-def with_fallback(action_desc, target_strata, pkg, default_strata = DEFAULT_STRATA, &block)
-  puts ":: #{action_desc} #{pkg} from strata #{target_strata}..."
-  puts "NOTE: Multi-strata operations are not yet implemented\n"
-  if confirm(":: Proceed with fallback to current strata (#{default_strata})? [y/N]", false)
-    yield(pkg)
-  else
-    puts ":: cancelled."
-    exit 0
-  end
+def get_package_manager(strata)
+  strata == "debian" ? "apt" : "pacman"
 end
 
-def handle_multi_packages(packages, action_desc, command_fmt, needs_confirmation: true)
+def handle_multi_packages(packages, action_desc, needs_confirmation: true)
   if packages.nil? || packages.empty?
     puts "error: no package specified for #{action_desc}"
     puts "usage: qsr #{action_desc.split[0]} <package> [package2 ...] or qsr #{action_desc.split[0]} <strata>:<package> [...]"
@@ -121,16 +140,30 @@ def handle_multi_packages(packages, action_desc, command_fmt, needs_confirmation
   end
 
   groups.each do |strata, pkgs|
+    unless strata_exists?(strata)
+      puts "error: strata '#{strata}' does not exist"
+      puts "available stratas:"
+      system("brl list")
+      exit 1
+    end
+    
     puts "\n:: #{action_desc} from strata '#{strata}': #{pkgs.join(', ')}"
     
-    if command_fmt.include?('%s')
-      pkgs.each do |pkg|
-        cmd = format(command_fmt, strata, pkg)
-        run_command(cmd)
+    if get_package_manager(strata) == "apt"
+      case action_desc
+      when /installing/
+        run_command("strat #{strata} apt update")
+        run_command("strat #{strata} apt install -y #{pkgs.join(' ')}")
+      when /removing/
+        run_command("strat #{strata} apt remove -y #{pkgs.join(' ')}")
       end
     else
-      cmd = format(command_fmt, strata, pkgs.join(' '))
-      run_command(cmd)
+      case action_desc
+      when /installing/
+        run_command("strat #{strata} pacman -Syu --noconfirm #{pkgs.join(' ')}")
+      when /removing/
+        run_command("strat #{strata} pacman -R --noconfirm #{pkgs.join(' ')}")
+      end
     end
   end
   
@@ -260,17 +293,23 @@ end
 # ----------------------------------------------------------------------
 
 def handle_install(packages)
-  handle_multi_packages(packages, "installing", "strat %s pacman -Syu --noconfirm %s", needs_confirmation: true)
+  handle_multi_packages(packages, "installing", needs_confirmation: true)
 end
 
 def handle_remove(packages)
-  handle_multi_packages(packages, "removing", "strat %s pacman -R --noconfirm %s", needs_confirmation: true)
+  handle_multi_packages(packages, "removing", needs_confirmation: true)
 end
 
 def handle_update(package = nil)
   if package.nil?
     puts ":: updating system packages..."
     run_command("strat #{DEFAULT_STRATA} pacman -Syu --noconfirm")
+    
+    if strata_exists?("debian")
+      puts ":: updating debian strata..."
+      run_command("strat debian apt update")
+      run_command("strat debian apt upgrade -y")
+    end
     
     puts ":: updating bedrock Linux..."
     run_command("brl update")
@@ -288,8 +327,21 @@ def handle_update(package = nil)
 
   strata, pkg = parse_strata_package(package)
   if strata
-    with_fallback("updating", strata, pkg) do |pk|
-      run_command("strat #{DEFAULT_STRATA} pacman -Syu --noconfirm #{pk}")
+    real_strata = normalize_strata_name(strata)
+    unless strata_exists?(real_strata)
+      puts "error: strata '#{real_strata}' does not exist"
+      puts "available stratas:"
+      system("brl list")
+      exit 1
+    end
+    
+    if get_package_manager(real_strata) == "apt"
+      puts ":: updating #{pkg} in #{real_strata}..."
+      run_command("strat #{real_strata} apt update")
+      run_command("strat #{real_strata} apt upgrade -y #{pkg}")
+    else
+      puts ":: updating #{pkg} in #{real_strata}..."
+      run_command("strat #{real_strata} pacman -Syu --noconfirm #{pkg}")
     end
   else
     puts ":: updating #{pkg}..."
@@ -302,9 +354,20 @@ def handle_list(strata = nil)
     puts ":: listing installed packages..."
     run_command("strat #{DEFAULT_STRATA} pacman -Q")
   else
-    puts ":: listing packages in strata #{strata}..."
-    puts "NOTE: Listing packages from other strata is not yet implemented"
-    exit 1
+    real_strata = normalize_strata_name(strata)
+    unless strata_exists?(real_strata)
+      puts "error: strata '#{real_strata}' does not exist"
+      puts "available stratas:"
+      system("brl list")
+      exit 1
+    end
+    
+    puts ":: listing packages in strata #{real_strata}..."
+    if get_package_manager(real_strata) == "apt"
+      run_command("strat #{real_strata} dpkg -l")
+    else
+      run_command("strat #{real_strata} pacman -Q")
+    end
   end
 end
 
@@ -317,13 +380,19 @@ def handle_info(package)
 
   strata, pkg = parse_strata_package(package)
   if strata
-    puts ":: showing info for #{pkg} in strata #{strata}..."
-    puts "NOTE: Multi-strata package info is not yet implemented"
-    if confirm(":: Show info from current strata instead? [y/N]", false)
-      run_command("strat #{DEFAULT_STRATA} pacman -Qi #{pkg}")
+    real_strata = normalize_strata_name(strata)
+    unless strata_exists?(real_strata)
+      puts "error: strata '#{real_strata}' does not exist"
+      puts "available stratas:"
+      system("brl list")
+      exit 1
+    end
+    
+    puts ":: showing info for #{pkg} in strata #{real_strata}..."
+    if get_package_manager(real_strata) == "apt"
+      run_command("strat #{real_strata} apt show #{pkg}")
     else
-      puts ":: cancelled."
-      exit 0
+      run_command("strat #{real_strata} pacman -Qi #{pkg}")
     end
   else
     puts ":: showing info for #{pkg}..."
@@ -339,15 +408,20 @@ def handle_doctor
     exit 1
   end
 
-  unless system("strat -l | grep -q '^#{DEFAULT_STRATA}$'")
+  unless strata_exists?(DEFAULT_STRATA)
     puts "warning: strata '#{DEFAULT_STRATA}' not found"
     puts ":: available stratas:"
-    system("strat -l")
+    system("brl list")
     exit 1
   end
 
-  puts ":: checking package manager..."
+  puts ":: checking arch package manager..."
   run_command("strat #{DEFAULT_STRATA} pacman -Q")
+  
+  if strata_exists?("debian")
+    puts ":: checking debian package manager..."
+    run_command("strat debian dpkg -l | head -5")
+  end
   
   if Dir.exist?(QUASAR_REPO_PATH)
     if File.directory?(File.join(QUASAR_REPO_PATH, ".git"))
