@@ -10,6 +10,7 @@ pacman -Sy --noconfirm wget
 pacman -Sy --noconfirm ruby
 pacman -Sy --noconfirm git
 pacman -Sy --noconfirm which
+pacman -Sy --noconfirm rsync
 
 cd /
 

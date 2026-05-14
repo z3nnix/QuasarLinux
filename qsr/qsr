@@ -7,6 +7,8 @@ require 'fileutils'
 DEFAULT_STRATA = "hijacked"
 VERSION = "0.1.2"
 $auto_confirm = false
+QUASAR_REPO_URL = "https://github.com/z3nnix/QuasarLinux.git"
+QUASAR_REPO_PATH = "/opt/quasar"
 
 # ----------------------------------------------------------------------
 # Helpers
@@ -57,7 +59,7 @@ def confirm(prompt, default = false)
   end
 end
 
-def run_command(cmd, show_exec = true)
+def run_command(cmd, show_exec = false)
   puts ":: executing: #{cmd}" if show_exec
   system(cmd)
   unless $?.success?
@@ -88,7 +90,6 @@ def group_packages_by_strata(packages)
   groups
 end
 
-# For read-only commands we rarely need confirmation, but for fallback we do.
 def with_fallback(action_desc, target_strata, pkg, default_strata = DEFAULT_STRATA, &block)
   puts ":: #{action_desc} #{pkg} from strata #{target_strata}..."
   puts "NOTE: Multi-strata operations are not yet implemented\n"
@@ -137,71 +138,125 @@ def handle_multi_packages(packages, action_desc, command_fmt, needs_confirmation
 end
 
 # ----------------------------------------------------------------------
-# Self-update
+# Repository Management
 # ----------------------------------------------------------------------
 
-def handle_self_update
-  puts ":: updating qsr to latest version..."
+def clone_or_update_quasar_repo
+  unless Dir.exist?(QUASAR_REPO_PATH)
+    puts ":: cloning Quasar repository..."
+    parent_dir = File.dirname(QUASAR_REPO_PATH)
+    FileUtils.mkdir_p(parent_dir) unless Dir.exist?(parent_dir)
+    
+    if system("git clone --quiet #{QUASAR_REPO_URL} #{QUASAR_REPO_PATH}")
+      puts ":: repository cloned successfully"
+      return true
+    else
+      puts "error: failed to clone repository"
+      return false
+    end
+  end
   
-  if confirm(":: Proceed with self-update? [y/N]", false)
-    current_path = `/usr/bin/which qsr`.chomp
-    current_path = $0 if current_path.empty? || current_path == ""
-    
-    if current_path.empty?
-      puts "error: cannot determine qsr binary location"
-      exit 1
-    end
-    
-    puts ":: current binary: #{current_path}"
-    puts ":: downloading latest version..."
-    
-    temp_file = "/tmp/qsr_new_#{Time.now.to_i}"
-    
-    download_cmd = "curl -s -o #{temp_file} https://raw.githubusercontent.com/z3nnix/quasarlinux/main/qsr/qsr"
-    system(download_cmd)
-    
-    unless $?.success? && File.exist?(temp_file) && File.size(temp_file) > 0
-      puts "error: failed to download new version"
-      File.delete(temp_file) if File.exist?(temp_file)
-      exit 1
-    end
-    
-    unless File.read(temp_file).include?("qsr - Quasar System Resources")
-      puts "error: downloaded file appears to be invalid"
-      File.delete(temp_file) if File.exist?(temp_file)
-      exit 1
-    end
-    
-    updater_script = <<~SCRIPT
-      #!/bin/bash
-      sleep 1
-      cp #{temp_file} #{current_path}
-      chmod +x #{current_path}
-      rm -f #{temp_file}
-      echo ":: qsr updated successfully!"
-      echo -n ":: New version: "
-      #{current_path} --version
-    SCRIPT
-    
-    updater_path = "/tmp/qsr_updater_#{Time.now.to_i}.sh"
-    File.write(updater_path, updater_script)
-    File.chmod(0755, updater_path)
-    
-    puts ":: spawning updater in background..."
-    system("nohup bash #{updater_path} > /dev/null 2>&1 &")
-    
-    puts ":: self-update initiated. Exiting qsr..."
-    puts ":: The update will complete in a few seconds."
-    puts ":: Run 'qsr --version' to verify the update."
-    
-    exit 0
+  unless File.directory?(File.join(QUASAR_REPO_PATH, ".git"))
+    puts "warning: #{QUASAR_REPO_PATH} exists but is not a git repository"
+    return false
+  end
+  
+  puts ":: updating Quasar repository..."
+  
+  unless system("cd #{QUASAR_REPO_PATH} && git fetch --all --prune --quiet")
+    puts "error: git fetch failed"
+    return false
+  end
+  
+  status_output = `cd #{QUASAR_REPO_PATH} && git status --porcelain`
+  unless status_output.empty?
+    system("cd #{QUASAR_REPO_PATH} && git stash push --quiet -m 'qsr auto-stash before update'")
+  end
+  
+  if system("cd #{QUASAR_REPO_PATH} && git pull --ff-only --quiet")
+    puts ":: repository updated successfully"
+    return true
   else
-    puts ":: cancelled."
+    puts "error: git pull failed"
+    return false
+  end
+end
+
+def sync_rootfs
+  rootfs_dir = File.join(QUASAR_REPO_PATH, "rootfs")
+  unless Dir.exist?(rootfs_dir)
+    puts "warning: #{rootfs_dir} not found, skipping rootfs sync"
+    return false
+  end
+  
+  files_count = `find #{rootfs_dir} -type f 2>/dev/null | wc -l`.chomp.to_i
+  
+  if files_count == 0
+    puts "warning: no files found in rootfs, skipping sync"
+    return false
+  end
+  
+  puts ":: syncing rootfs (#{files_count} files)..."
+  
+  rsync_cmd = "rsync -a --no-owner --no-group --quiet --exclude='.git*' #{rootfs_dir}/ /"
+  
+  if system(rsync_cmd)
+    puts ":: rootfs sync completed"
+    return true
+  else
+    puts "error: rootfs sync failed"
+    return false
   end
 end
 
 # ----------------------------------------------------------------------
-# Command handlers
+# Self-update
+# ----------------------------------------------------------------------
+
+def handle_self_update
+  current_path = `/usr/bin/which qsr`.chomp
+  current_path = $0 if current_path.empty? || current_path == ""
+  
+  if current_path.empty?
+    puts "error: cannot determine qsr binary location"
+    return false
+  end
+  
+  temp_file = "/tmp/qsr_new_#{Time.now.to_i}"
+  
+  download_cmd = "curl -s -o #{temp_file} https://raw.githubusercontent.com/z3nnix/quasarlinux/main/qsr/qsr"
+  system(download_cmd)
+  
+  unless $?.success? && File.exist?(temp_file) && File.size(temp_file) > 0
+    puts "error: failed to download new version"
+    File.delete(temp_file) if File.exist?(temp_file)
+    return false
+  end
+  
+  unless File.read(temp_file).include?("qsr - Quasar System Resources")
+    puts "error: downloaded file appears to be invalid"
+    File.delete(temp_file) if File.exist?(temp_file)
+    return false
+  end
+  
+  updater_script = <<~SCRIPT
+    #!/bin/bash
+    sleep 1
+    cp #{temp_file} #{current_path}
+    chmod +x #{current_path}
+    rm -f #{temp_file}
+  SCRIPT
+  
+  updater_path = "/tmp/qsr_updater_#{Time.now.to_i}.sh"
+  File.write(updater_path, updater_script)
+  File.chmod(0755, updater_path)
+  
+  system("nohup bash #{updater_path} > /dev/null 2>&1 &")
+  return true
+end
+
+# ----------------------------------------------------------------------
+# Command Handlers
 # ----------------------------------------------------------------------
 
 def handle_install(packages)
@@ -214,51 +269,43 @@ end
 
 def handle_update(package = nil)
   if package.nil?
-    puts ":: updating entire system..."
-    if confirm(":: Proceed with full system update? [Y/n]", true)
-      run_command("strat #{DEFAULT_STRATA} pacman -Syu --noconfirm")
-      run_command("brl update")
-    else
-      puts ":: cancelled."
-      exit 0
+    puts ":: updating system packages..."
+    run_command("strat #{DEFAULT_STRATA} pacman -Syu --noconfirm")
+    
+    puts ":: updating bedrock Linux..."
+    run_command("brl update")
+    
+    if clone_or_update_quasar_repo
+      sync_rootfs
     end
-    puts "done."
+    
+    puts ":: updating qsr..."
+    handle_self_update
+    
+    puts ":: system update completed"
     return
   end
 
   strata, pkg = parse_strata_package(package)
   if strata
     with_fallback("updating", strata, pkg) do |pk|
-      if confirm(":: Proceed with update? [Y/n]", true)
-        run_command("strat #{DEFAULT_STRATA} pacman -Syu --noconfirm #{pk}")
-      else
-        puts ":: cancelled."
-        exit 0
-      end
+      run_command("strat #{DEFAULT_STRATA} pacman -Syu --noconfirm #{pk}")
     end
   else
-    puts ":: updating #{pkg} in current strata..."
-    if confirm(":: Proceed with update? [Y/n]", true)
-      run_command("strat #{DEFAULT_STRATA} pacman -Syu --noconfirm #{pkg}")
-    else
-      puts ":: cancelled."
-      exit 0
-    end
+    puts ":: updating #{pkg}..."
+    run_command("strat #{DEFAULT_STRATA} pacman -Syu --noconfirm #{pkg}")
   end
-  puts "done."
 end
 
 def handle_list(strata = nil)
   if strata.nil?
-    puts ":: listing all installed packages in current strata (#{DEFAULT_STRATA})..."
+    puts ":: listing installed packages..."
     run_command("strat #{DEFAULT_STRATA} pacman -Q")
   else
     puts ":: listing packages in strata #{strata}..."
-    puts "NOTE: Listing packages from other strata is not yet implemented\n"
-    puts ":: This feature will be available in a future version"
+    puts "NOTE: Listing packages from other strata is not yet implemented"
     exit 1
   end
-  puts "done."
 end
 
 def handle_info(package)
@@ -271,7 +318,7 @@ def handle_info(package)
   strata, pkg = parse_strata_package(package)
   if strata
     puts ":: showing info for #{pkg} in strata #{strata}..."
-    puts "NOTE: Multi-strata package info is not yet implemented\n"
+    puts "NOTE: Multi-strata package info is not yet implemented"
     if confirm(":: Show info from current strata instead? [y/N]", false)
       run_command("strat #{DEFAULT_STRATA} pacman -Qi #{pkg}")
     else
@@ -282,14 +329,11 @@ def handle_info(package)
     puts ":: showing info for #{pkg}..."
     run_command("strat #{DEFAULT_STRATA} pacman -Qi #{pkg}")
   end
-  puts "done."
 end
 
 def handle_doctor
   puts ":: running system diagnostics..."
-  # No confirmation needed for read-only diagnostic
-
-  puts ":: checking strata integrity..."
+  
   unless system("which strat > /dev/null 2>&1")
     puts "error: 'strat' command not found. Is Bedrock Linux installed?"
     exit 1
@@ -304,12 +348,19 @@ def handle_doctor
 
   puts ":: checking package manager..."
   run_command("strat #{DEFAULT_STRATA} pacman -Q")
+  
+  if Dir.exist?(QUASAR_REPO_PATH)
+    if File.directory?(File.join(QUASAR_REPO_PATH, ".git"))
+      version = `cd #{QUASAR_REPO_PATH} && git rev-parse --short HEAD 2>/dev/null`.chomp
+      puts ":: Quasar repository: #{version}" unless version.empty?
+    end
+  end
 
-  puts ":: all checks passed. System appears healthy."
+  puts ":: system healthy"
 end
 
 # ----------------------------------------------------------------------
-# Argument parser
+# Argument Parser
 # ----------------------------------------------------------------------
 
 def parse_arguments
@@ -349,7 +400,6 @@ def parse_arguments
     handle_remove(ARGV)
   when "update"
     handle_update(ARGV.shift)
-    handle_self_update
   when "list"
     handle_list(ARGV.shift)
   when "info"
