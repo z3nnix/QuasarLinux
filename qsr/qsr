@@ -5,7 +5,7 @@ require 'optparse'
 require 'fileutils'
 
 DEFAULT_STRATA = "hijacked"
-VERSION = "0.1.3"
+VERSION = "0.1.4"
 $auto_confirm = false
 QUASAR_REPO_URL = "https://github.com/z3nnix/QuasarLinux.git"
 QUASAR_REPO_PATH = "/opt/quasar"
@@ -401,36 +401,184 @@ def handle_info(package)
 end
 
 def handle_doctor
-  puts ":: running system diagnostics..."
-  
-  unless system("which strat > /dev/null 2>&1")
-    puts "error: 'strat' command not found. Is Bedrock Linux installed?"
-    exit 1
-  end
+  puts "\n"
+  puts "  ┌──────────────────────────────────────────────────────────────┐"
+  puts "  │  \033[1;36mqsr doctor\033[0m — Quasar System Resources                        │"
+  puts "  └──────────────────────────────────────────────────────────────┘"
+  puts "\n"
 
-  unless strata_exists?(DEFAULT_STRATA)
-    puts "warning: strata '#{DEFAULT_STRATA}' not found"
-    puts ":: available stratas:"
-    system("brl list")
-    exit 1
-  end
+  stratas = `brl list 2>/dev/null`.split
+  issues = []
+  warnings = []
 
-  puts ":: checking arch package manager..."
-  run_command("strat #{DEFAULT_STRATA} pacman -Q")
+  label_width = 22
   
-  if strata_exists?("debian")
-    puts ":: checking debian package manager..."
-    run_command("strat debian dpkg -l | head -5")
-  end
-  
-  if Dir.exist?(QUASAR_REPO_PATH)
-    if File.directory?(File.join(QUASAR_REPO_PATH, ".git"))
-      version = `cd #{QUASAR_REPO_PATH} && git rev-parse --short HEAD 2>/dev/null`.chomp
-      puts ":: Quasar repository: #{version}" unless version.empty?
+  def print_line(label, detail, subline: false, status: nil)
+    prefix = subline ? "    " : "  "
+    label_width = 22
+
+    label_str = label.ljust(label_width)
+    
+    if status == :ok && subline
+      status_str = "\033[32m✓\033[0m "
+    elsif status == :warn && subline
+      status_str = "\033[33m◌\033[0m "
+    elsif status == :fail && subline
+      status_str = "\033[31m✗\033[0m "
+    else
+      status_str = ""
     end
+    
+    printf "%s%s %s%s\n", prefix, label_str, status_str, detail
   end
 
-  puts ":: system healthy"
+  # ─────────────────────────────────────────────────────────────────────
+  # BEDROCK
+  # ─────────────────────────────────────────────────────────────────────
+  bedrock_ok = system("which strat > /dev/null 2>&1") && system("which brl > /dev/null 2>&1")
+  
+  if bedrock_ok
+    version = `brl version 2>/dev/null`.chomp
+    version = version.empty? ? "present" : version
+    puts(" " + version)
+  else
+    print_line("Bedrock Linux", "not installed", status: :fail)
+    issues << "Bedrock Linux is not installed"
+  end
+
+  # ─────────────────────────────────────────────────────────────────────
+  # STRATA
+  # ─────────────────────────────────────────────────────────────────────
+  if stratas.any?
+    puts("  Strata")
+    
+    stratas.each do |s|
+      next if s == "bedrock"
+      
+      responsive = system("strat #{s} sh -c 'exit 0' 2>/dev/null")
+      
+      # Hardcoded package managers based on stratum name
+      pm = case s
+      when "debian"
+        "apt"
+      when "hijacked"
+        "pacman"
+      else
+        nil
+      end
+      
+      if responsive && pm
+        pkg_count = case pm
+        when "pacman"
+          `strat #{s} pacman -Q 2>/dev/null | wc -l`.chomp.to_i
+        when "apt"
+          `strat #{s} dpkg -l 2>/dev/null | grep -c '^ii'`.chomp.to_i
+        else
+          0
+        end
+        print_line(s, "#{pm} (#{pkg_count} packages)", subline: true, status: :ok)
+      elsif responsive && !pm
+        print_line(s, "unknown package manager", subline: true, status: :warn)
+        warnings << "Stratum '#{s}' has unknown package manager"
+      elsif !responsive
+        print_line(s, "unresponsive", subline: true, status: :fail)
+        issues << "Stratum '#{s}' is unresponsive"
+      end
+    end
+  else
+    print_line("Strata", "no strata found", status: :fail)
+    issues << "No strata configured"
+  end
+
+  puts
+
+  # ─────────────────────────────────────────────────────────────────────
+  # QUASAR
+  # ─────────────────────────────────────────────────────────────────────
+  quasar_ok = Dir.exist?(QUASAR_REPO_PATH) && File.directory?(File.join(QUASAR_REPO_PATH, ".git"))
+  
+  if quasar_ok
+    commit = `cd #{QUASAR_REPO_PATH} 2>/dev/null && git rev-parse --short HEAD 2>/dev/null`.chomp
+    commit = commit.empty? ? "unknown" : commit
+    print("  Quasar repository ", "(#{commit})")
+    puts
+    
+    rootfs_dir = File.join(QUASAR_REPO_PATH, "rootfs")
+    if Dir.exist?(rootfs_dir)
+      files = `find #{rootfs_dir} -type f 2>/dev/null | wc -l`.chomp.to_i
+      print_line("rootfs", "#{files} files", subline: true, status: :ok)
+    else
+      print_line("rootfs", "missing", subline: true, status: :warn)
+      warnings << "Rootfs directory not found"
+    end
+  else
+    print_line("Quasar repository", "not found", status: :fail)
+    issues << "Quasar repository missing at #{QUASAR_REPO_PATH}"
+  end
+
+  puts
+
+  # ─────────────────────────────────────────────────────────────────────
+  # SYSTEM INFO
+  # ─────────────────────────────────────────────────────────────────────
+  mem_total = `grep MemTotal /proc/meminfo 2>/dev/null | awk '{print $2}'`.chomp.to_i
+  mem_avail = `grep MemAvailable /proc/meminfo 2>/dev/null | awk '{print $2}'`.chomp.to_i
+  mem_used = mem_total - mem_avail
+  mem_percent = mem_total > 0 ? (mem_used * 100 / mem_total) : 0
+
+  uptime_sec = `cat /proc/uptime 2>/dev/null | awk '{print $1}'`.chomp.to_i
+  uptime_days = uptime_sec / 86400
+  uptime_hours = (uptime_sec % 86400) / 3600
+  uptime_minutes = (uptime_sec % 86400) / 60
+
+  load = `cat /proc/loadavg 2>/dev/null | awk '{print $1, $2, $3}'`.chomp
+
+  print_line("System", "")
+  print_line("memory", "#{mem_used/1024} MB / #{mem_total/1024} MB (#{mem_percent}%)", subline: true, status: :ok)
+  print_line("uptime", "#{uptime_days} days, #{uptime_hours} hours #{uptime_minutes} minutes", subline: true, status: :ok)
+  print_line("load", load, subline: true, status: :ok) unless load.empty?
+
+  # ─────────────────────────────────────────────────────────────────────
+  # RESULT
+  # ─────────────────────────────────────────────────────────────────────
+  puts "\n  ┌──────────────────────────────────────────────────────────────┐"
+  
+  if issues.empty? && warnings.empty?
+    puts "  │  \033[32m●  SYSTEM HEALTHY\033[0m                                           │"
+    puts "  │  All checks passed. Quasar is ready.                         │"
+  elsif issues.empty?
+    puts "  │  \033[33m◌  SYSTEM DEGRADED\033[0m                                          │"
+    puts "  │  Warnings:                                                    │"
+    warnings.each { |w| puts "  │    - #{w}" }
+  else
+    puts "  │  \033[31m●  SYSTEM FAIL\033[0m                                              │"
+    puts "  │  Issues:                                                      │"
+    issues.each { |i| puts "  │    - #{i}" }
+    
+    if warnings.any?
+      puts "  │                                                              │"
+      puts "  │  Warnings:                                                   │"
+      warnings.each { |w| puts "  │    - #{w}" }
+    end
+    
+    puts "  │                                                              │"
+    puts "  │  Fixes:                                                       │"
+    
+    if issues.any? { |i| i =~ /unresponsive/ }
+      puts "  │    brl repair                                                │"
+    end
+    if issues.any? { |i| i =~ /repository/ }
+      puts "  │    git clone #{QUASAR_REPO_URL} #{QUASAR_REPO_PATH}            │"
+    end
+    if issues.any? { |i| i =~ /Bedrock/ }
+      puts "  │    https://bedrocklinux.org/install.html                     │"
+    end
+    
+    exit 1
+  end
+  
+  puts "  └──────────────────────────────────────────────────────────────┘"
+  puts ""
 end
 
 # ----------------------------------------------------------------------
