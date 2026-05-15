@@ -6,7 +6,7 @@
 
 Quasar is a meta-distribution that runs Arch and Debian side by side — not in VMs, not in chroots, but natively on the same filesystem. Need a package that isn't in Arch? Pull it from Debian. Want a rock‑stable base with fresh apps from Arch? Flip the default stratum.
 
-<img src='meta/screenshot.png' width=512 height=256> <br>
+<img src='meta/screenshot.png' width=1024 height=512> <br>
 _This is [zennix](https://github.com/z3nnix)'s daily desktop btw_
 ---
 
