@@ -1,0 +1,5 @@
+ALL_kver="/boot/vmlinuz-linux"
+PRESETS=('default')
+
+default_uki="/boot/EFI/Linux/arch-linux.efi"
+fallback_uki="/boot/EFI/Linux/arch-linux-fallback.efi"
