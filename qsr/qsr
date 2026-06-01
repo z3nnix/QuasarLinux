@@ -5,7 +5,7 @@ require 'optparse'
 require 'fileutils'
 
 DEFAULT_STRATA = "hijacked"
-VERSION = "0.1.4"
+VERSION = "0.1.5"
 $auto_confirm = false
 QUASAR_REPO_URL = "https://github.com/z3nnix/QuasarLinux.git"
 QUASAR_REPO_PATH = "/opt/quasar"
@@ -321,6 +321,8 @@ def handle_update(package = nil)
     puts ":: updating qsr..."
     handle_self_update
     
+    system("mkinitcpio -P")
+
     puts ":: system update completed"
     return
   end
